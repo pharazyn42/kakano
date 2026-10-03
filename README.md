@@ -13,7 +13,7 @@ Built for one learner, so there is no backend, no account and no tracking. Progr
 - **Exercises**: multiple choice (both directions), typing, and tap-to-build sentences
 - **Spaced repetition**: Leitner boxes with 0, 1, 2, 4, 8 and 16 day gaps, graded on the first time you answer each item. The **Review** button (top of the path) shows how many items are due. Replaying a lesson never changes the schedule
 - **Sounds** page, plus links to real audio from Māori educators and institutions
-- **Pronunciation audio** from Te Aka on 32 of the 33 words: plays automatically on new-word cards and after you answer, and there is a 🔊 Listen button wherever a word appears (including the word list). Turn auto-play off in **More**
+- **Pronunciation audio** from Te Aka on 32 of the 33 words: plays automatically on new-word cards and after you answer, and there is a 🔊 Listen button wherever a word appears (including the word list). Sentences have 🔊 Word by word. Turn auto-play off in **More**
 - **Te Aka links** on every word, straight to the exact dictionary entry, so you can check it as you learn
 - **Practise** button when nothing is due (free practice, no effect on the schedule)
 - **Export / import** progress to move between devices
@@ -43,7 +43,7 @@ Each word has a `te_aka_id`: the number in its Te Aka page URL (`maoridictionary
 
 - The entries were matched by hand against Te Aka on 2026-10-03, picking the right homonym each time (for example *wai* "who" vs "water", *rā* "sun" vs "to wed"). That check also corrected *ae* to **āe**.
 - *ka kite* has no entry of its own in Te Aka (only longer phrases), so it has no audio.
-- Sentences have no audio yet.
+- **Sentences are spoken word by word**: the 🔊 Word by word button plays each word's Te Aka recording in order. Words that are lesson items are picked up automatically; small function words (*kei, te, ko, he, i, ki…*) and the name *Hēmi* come from the `lexicon` list in `content/lessons.json` (matched by hand against Te Aka on 2026-10-03). Treat it as a study aid: these are isolated-word recordings joined together, so the rhythm and linking are choppy and not how a native speaker says the whole sentence. For natural speech, listen to real speakers (e.g. Te Whanake). A sentence with any missing word gets no button rather than a half-spoken one
 - To avoid a delay when you tap 🔊, the app opens the connection early and starts loading the current lesson's recordings (and the next few questions') before they're needed, then reuses them. The very first tap on a slow connection can still take a moment.
 - Te Aka's site is © John C Moorfield and does not state terms for reusing its audio. This app is for personal study, credits Te Aka in the footer and links to the entry for every word. If you ever share it widely, ask Te Aka / Te Whanake for permission first. If the audio location changes, edit `audio_base`; if a recording stops loading, the app just shows "Couldn't play that audio".
 - To use a recording from somewhere else, give the item an `audio` URL; it takes priority over `te_aka_id`.
@@ -73,6 +73,7 @@ To control the split yourself, give a unit a `lessons` list. Every item in the u
 - `id` must be unique and should never change once you've started learning it (progress is keyed by it).
 - `en` should be unique within a type, or multiple choice gets ambiguous.
 - Sentences are built from the words in `mi`, plus any `distractors`.
+- A sentence's audio comes from its words. If you add a sentence with a new small word, add it to the top-level `lexicon` (`"word": te_aka_id`); `node tools/validate.js` tells you which words are missing. Or give the sentence its own `audio` URL.
 - `te_aka_id` (words only) gives the in-app 🔊 audio and the exact Te Aka link. `audio` overrides the audio URL. `audio_link` / `video_link` appear as "More audio" / "Watch" links to elsewhere, so add recordings and videos as you find good ones. `dictionary_link` overrides the Te Aka link.
 
 Check your edits:
@@ -95,6 +96,6 @@ node test/core.test.js
 ## Ideas for later
 
 - Installable PWA with offline support
-- Recorded audio per item, played in-app
+- Whole-sentence recordings where Te Aka has them (e.g. the *Kei te pēhea koe?* entry) to replace stitched audio
 - More units: numbers, colours, days, simple pepeha
 - A "weak items" review screen

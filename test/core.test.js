@@ -242,4 +242,27 @@ test('content: every word except "ka kite" has a Te Aka id; ids are unique; spel
   assert.ok(content.meta.audio_credit.includes('Te Aka'));
 });
 
+test('sentence audio: one clip per word in order, from lesson words plus the lexicon', () => {
+  const lex = C.makeLexicon(content);
+  const B = content.meta.audio_base;
+  const u = (id) => B + id + '.mp3';
+  assert.deepStrictEqual(C.audioUrls(byId['s-kei-te-pai-au'], content.meta, lex), [u(2514), u(7876), u(4936), u(502)]);
+  assert.deepStrictEqual(C.audioUrls(byId['s-kei-te-inu'], content.meta, lex),
+    [u(2514), u(7876), u(1754), u(2761), u(1640), u(7876), u(9017)], 'te repeats; wai is the lesson word');
+  assert.deepStrictEqual(C.audioUrls(byId['s-ko-hemi'], content.meta, lex), [u(2743), u(1059), u(8398), u(1760)]);
+  assert.deepStrictEqual(C.audioUrls(byId['kai'], content.meta, lex), [u(1894)], 'a word is a single clip');
+  assert.deepStrictEqual(C.audioUrls(byId['ka-kite'], content.meta, lex), []);
+  assert.deepStrictEqual(C.audioUrls({ type: 'sentence', mi: 'Kei te rere au.' }, content.meta, lex), [], 'unknown word means no partial audio');
+  assert.deepStrictEqual(C.audioUrls({ type: 'sentence', mi: 'Kei te pai au.', audio: 'https://e.org/s.mp3' }, content.meta, lex), ['https://e.org/s.mp3'], 'explicit audio wins');
+  assert.strictEqual(lex._about, undefined);
+});
+
+test('content: every sentence can be spoken word by word', () => {
+  const lex = C.makeLexicon(content);
+  items.filter((i) => i.type === 'sentence').forEach((s) => {
+    const urls = C.audioUrls(s, content.meta, lex);
+    assert.strictEqual(urls.length, C.tokensOf(s.mi).tokens.length, 'missing a word recording in: ' + s.mi);
+  });
+});
+
 console.log(`\n${n} tests passed`);

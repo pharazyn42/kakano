@@ -59,6 +59,27 @@ const seen = {};
   unitIds.forEach((id) => { if (!used[id]) errors.push(`${u.id}: item "${id}" is not in any lesson`); });
 });
 
+// Lexicon: word -> Te Aka id, used to speak sentences word by word.
+Object.keys(content.lexicon || {}).forEach((k) => {
+  if (k.charAt(0) === '_') return;
+  const id = content.lexicon[k];
+  if (!(Number.isInteger(id) && id > 0)) errors.push(`lexicon "${k}": must be a positive whole number (Te Aka /word/NNN id)`);
+});
+
+// Every sentence should be speakable word by word: each word needs a lesson word with a te_aka_id, or a lexicon entry.
+{
+  const lex = {};
+  (content.units || []).forEach((u) => u.items.forEach((it) => {
+    if (it.type === 'word' && it.te_aka_id && !/\s/.test(it.mi)) lex[it.mi.toLowerCase()] = true;
+  }));
+  Object.keys(content.lexicon || {}).forEach((k) => { lex[k.toLowerCase()] = true; });
+  (content.units || []).forEach((u) => u.items.forEach((it) => {
+    if (it.type !== 'sentence' || it.audio) return;
+    const missing = it.mi.replace(/[.?!,]/g, '').split(/\s+/).filter((t) => t && !lex[t.toLowerCase()]);
+    if (missing.length) errors.push(`${u.id}/${it.id}: no word audio for ${missing.join(', ')} (add to "lexicon" or give the sentence an "audio" URL)`);
+  }));
+}
+
 if (errors.length) {
   console.error('Content problems:\n - ' + errors.join('\n - '));
   process.exit(1);

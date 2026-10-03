@@ -6,6 +6,22 @@
     "audio_credit": "Pronunciation audio and dictionary entries: Te Aka Māori Dictionary, © John C Moorfield",
     "note": "Everything here was drafted by an AI and has NOT been checked by a fluent speaker. Verify each item against Te Aka (maoridictionary.co.nz) and mark it checked in the app. Fix mistakes by editing this file."
   },
+  "lexicon": {
+    "_about": "Small words used inside sentences that aren't lesson items. Word -> Te Aka entry id (the number in /word/NNN). Sentence audio plays one recording per word, in order. Words that are lesson items with a te_aka_id are picked up automatically.",
+    "kei": 2514,
+    "te": 7876,
+    "pēhea": 5421,
+    "ko": 2743,
+    "tōku": 8398,
+    "tōu": 8547,
+    "i": 1640,
+    "ki": 2596,
+    "he": 1005,
+    "tēnei": 7927,
+    "tērā": 7944,
+    "hēmi": 1059,
+    "hemi": 1059
+  },
   "units": [
     {
       "id": "u1",

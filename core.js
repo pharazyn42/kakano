@@ -250,6 +250,42 @@
     return '';
   }
 
+  // Word lookup for stitching sentence audio: lowercase Māori word (macrons kept) -> Te Aka entry id.
+  // Built from every single-word item that has a te_aka_id, then the content's explicit "lexicon"
+  // (small function words such as kei, te, ko, he) which wins on any clash.
+  function makeLexicon(content) {
+    var lex = {};
+    ((content && content.units) || []).forEach(function (u) {
+      (u.items || []).forEach(function (it) {
+        if (it.type === 'word' && it.te_aka_id && tokensOf(it.mi).tokens.length === 1) lex[strict(it.mi)] = it.te_aka_id;
+      });
+    });
+    var extra = (content && content.lexicon) || {};
+    Object.keys(extra).forEach(function (k) {
+      if (k.charAt(0) !== '_') lex[strict(k)] = extra[k];
+    });
+    return lex;
+  }
+
+  // Every recording needed to say an item, in order: one clip for a word, one per word for a sentence.
+  // Empty if anything is missing, so a half-spoken sentence is never offered.
+  function audioUrls(item, meta, lexicon) {
+    if (!item) return [];
+    if (item.audio) return [item.audio];
+    if (item.type !== 'sentence') {
+      var one = audioUrl(item, meta);
+      return one ? [one] : [];
+    }
+    if (!meta || !meta.audio_base || !lexicon) return [];
+    var toks = tokensOf(item.mi).tokens, out = [];
+    for (var i = 0; i < toks.length; i++) {
+      var id = lexicon[strict(toks[i])];
+      if (!id) return [];
+      out.push(meta.audio_base + id + '.mp3');
+    }
+    return out;
+  }
+
   // Dictionary page for an item: explicit link, else the exact Te Aka entry, else a search (words only).
   function dictionaryUrl(item, meta) {
     if (item.dictionary_link) return item.dictionary_link;
@@ -281,7 +317,8 @@
     dueItems: dueItems, buildReview: buildReview, pickExercise: pickExercise,
     makeLessons: makeLessons, isDone: isDone, isUnlocked: isUnlocked, currentIndex: currentIndex,
     lessonSteps: lessonSteps, exerciseFor: exerciseFor, starsFor: starsFor, migrate: migrate,
-    distractorsFor: distractorsFor, audioUrl: audioUrl, dictionaryUrl: dictionaryUrl
+    distractorsFor: distractorsFor, audioUrl: audioUrl, dictionaryUrl: dictionaryUrl,
+    makeLexicon: makeLexicon, audioUrls: audioUrls
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

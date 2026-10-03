@@ -59,7 +59,13 @@
     toastTimer = setTimeout(function () { el.classList.remove('show'); }, 3000);
   }
 
-  function hasAudio(item) { return !!C.audioUrl(item, content.meta); }
+  var lexicon = {};
+  var playToken = 0;   // bumped on every new playback so an older sentence stops chaining
+
+  // Recordings needed for an item: one clip for a word, one per word for a sentence ([] if any is missing).
+  function clips(item) { return C.audioUrls(item, content.meta, lexicon); }
+
+  function hasAudio(item) { return clips(item).length > 0; }
 
   function audioEl(url) {
     if (!audioEls[url]) {
@@ -75,41 +81,60 @@
   function warm(list) {
     if (!audioApi) return;
     list.forEach(function (it) {
-      var url = it && C.audioUrl(it, content.meta);
-      if (!url || warmed[url]) return;
-      warmed[url] = true;
-      audioEl(url);
-      try { fetch(url, { mode: 'no-cors' }).catch(function () { /* just a warm-up */ }); } catch (e) { /* ignore */ }
+      clips(it).forEach(function (url) {
+        if (warmed[url]) return;
+        warmed[url] = true;
+        audioEl(url);
+        try { fetch(url, { mode: 'no-cors' }).catch(function () { /* just a warm-up */ }); } catch (e) { /* ignore */ }
+      });
     });
   }
 
   function warmIds(ids) { warm(ids.map(function (id) { return byId[id]; })); }
 
-  // quiet = automatic playback: stay silent if the browser blocks it or the file won't load.
+  function stopAudio() {
+    playToken += 1;
+    if (nowPlaying) {
+      nowPlaying.onended = null;
+      try { nowPlaying.pause(); } catch (e) { /* ignore */ }
+      nowPlaying = null;
+    }
+  }
+
+  // Plays a word, or a sentence word by word (each clip starts when the previous one ends).
+  // quiet = automatic playback: stay silent if the browser blocks it or a file won't load.
   function playItem(item, quiet) {
-    var url = item && C.audioUrl(item, content.meta);
-    if (!url || !audioApi) return;
-    function failed() {
+    var urls = clips(item);
+    if (!urls.length || !audioApi) return;
+    stopAudio();
+    var token = playToken;
+    function failed(url) {
       // Forget the element so the next tap starts a fresh request instead of reusing a broken one.
       delete audioEls[url]; delete warmed[url];
-      if (!quiet) toast("Couldn't play that audio. Check your connection.");
+      if (!quiet && token === playToken) toast("Couldn't play that audio. Check your connection.");
     }
-    try {
-      var a = audioEl(url);
-      if (nowPlaying && nowPlaying !== a) nowPlaying.pause();
-      try { a.currentTime = 0; } catch (e) { /* not loaded yet: it will start from the beginning anyway */ }
-      nowPlaying = a;
-      var p = a.play();
-      if (p && p.catch) p.catch(failed);
-    } catch (e) { failed(); }
+    function step(n) {
+      if (token !== playToken || n >= urls.length) return;
+      var url = urls[n];
+      try {
+        var a = audioEl(url);
+        try { a.currentTime = 0; } catch (e) { /* not loaded yet: it will start from the beginning anyway */ }
+        nowPlaying = a;
+        a.onended = function () { a.onended = null; step(n + 1); };
+        var p = a.play();
+        if (p && p.catch) p.catch(function () { failed(url); });
+      } catch (e) { failed(url); }
+    }
+    step(0);
   }
 
   function autoplay(item) { if (state.settings.autoplay) playItem(item, true); }
 
   function playBtn(item) {
-    return hasAudio(item)
-      ? '<button class="play" data-play="' + esc(item.id) + '" aria-label="Play pronunciation of ' + esc(item.mi) + '">🔊 Listen</button>'
-      : '';
+    if (!hasAudio(item)) return '';
+    var sentence = item.type === 'sentence';
+    return '<button class="play" data-play="' + esc(item.id) + '" aria-label="' +
+      (sentence ? 'Play word by word: ' : 'Play pronunciation of ') + esc(item.mi) + '">🔊 ' + (sentence ? 'Word by word' : 'Listen') + '</button>';
   }
 
   function linksFor(item) {
@@ -202,7 +227,7 @@
       '<p class="muted">' + (l.kind === 'review'
         ? 'Mixed questions from the whole unit. Type your answers where you can.'
         : 'Meet these, then practise them twice.') + '</p>' +
-      (anyAudio ? '<p class="small muted">Tap 🔊 to hear a word.</p>' : '') +
+      (anyAudio ? '<p class="small muted">Tap 🔊 to hear it. Sentences play word by word.</p>' : '') +
       '<ul class="plain">' + list + '</ul>' +
       (rec ? '<p class="small muted" style="margin-top:10px">Best result: ' + starsHtml(rec.stars || 1) + '</p>' : '') +
       '<button class="btn" id="start">' + (rec ? 'Practise again' : 'Start') + '</button>' +
@@ -591,6 +616,7 @@
     if (credit && content.meta.audio_credit) credit.textContent = content.meta.audio_credit;
     items = C.flatten(content);
     byId = {}; items.forEach(function (i) { byId[i.id] = i; });
+    lexicon = C.makeLexicon(content);
     lessons = C.makeLessons(content);
     state = loadState();
     if (state.v !== STATE_VERSION) {
