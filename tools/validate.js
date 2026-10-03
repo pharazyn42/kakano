@@ -39,6 +39,22 @@ const seen = {};
   seen[key] = it.id;
 }));
 
+// Explicit "lessons" in a unit must cover every item exactly once, and only use that unit's ids.
+(content.units || []).forEach((u) => {
+  if (!u.lessons) return;
+  const unitIds = new Set(u.items.map((i) => i.id));
+  const used = {};
+  u.lessons.forEach((l, li) => {
+    if (!Array.isArray(l.items) || !l.items.length) errors.push(`${u.id}: lesson ${li + 1} needs a non-empty items list`);
+    (l.items || []).forEach((id) => {
+      if (!unitIds.has(id)) errors.push(`${u.id}: lesson ${li + 1} lists unknown item "${id}"`);
+      else if (used[id]) errors.push(`${u.id}: item "${id}" is in more than one lesson`);
+      used[id] = true;
+    });
+  });
+  unitIds.forEach((id) => { if (!used[id]) errors.push(`${u.id}: item "${id}" is not in any lesson`); });
+});
+
 if (errors.length) {
   console.error('Content problems:\n - ' + errors.join('\n - '));
   process.exit(1);

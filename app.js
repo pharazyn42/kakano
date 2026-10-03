@@ -2,9 +2,10 @@
   'use strict';
   var C = window.KakanoCore;
   var LS_KEY = 'kakano.v1';
-  var SESSION_SIZE = 10, NEW_PER_DAY = 5;
+  var STATE_VERSION = 2;
+  var REVIEW_SIZE = 10;
   var app = document.getElementById('app');
-  var content, items, state, session = null;
+  var content, items, byId, lessons, state, session = null;
 
   /* ---------- helpers ---------- */
   function esc(s) {
@@ -12,11 +13,11 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function blank() { return { items: {}, days: [], newToday: { date: '', count: 0 }, verified: {} }; }
+  function blank() { return { v: STATE_VERSION, items: {}, days: [], lessons: {}, verified: {} }; }
   function loadState() {
     try {
       var s = JSON.parse(localStorage.getItem(LS_KEY));
-      if (s && s.items) return Object.assign(blank(), s);
+      if (s && s.items) { s = Object.assign(blank(), s, { v: s.v }); s.lessons = s.lessons || {}; return s; }
     } catch (e) { /* fall through */ }
     return blank();
   }
@@ -24,6 +25,18 @@
   function today() { return C.todayStr(); }
   function $(sel) { return app.querySelector(sel); }
   function $all(sel) { return Array.prototype.slice.call(app.querySelectorAll(sel)); }
+  function starsHtml(n) { return '<span class="stars" aria-label="' + n + ' of 3 stars">' + '★'.repeat(n) + '☆'.repeat(3 - n) + '</span>'; }
+  function seenCount() { return items.filter(function (i) { return state.items[i.id]; }).length; }
+
+  // Sets the screen. During a lesson, wires up the quit button.
+  function setView(html) {
+    app.innerHTML = html;
+    var q = $('#quit');
+    if (q) q.onclick = function () {
+      if (session && session.mode === 'lesson' && !confirm('Quit this lesson? You will lose your progress in it.')) return;
+      renderHome();
+    };
+  }
 
   function linksFor(item) {
     var out = [];
@@ -43,108 +56,138 @@
     return '🌰';
   }
 
-  /* ---------- home ---------- */
+  /* ---------- home: the lesson path ---------- */
   function renderHome() {
     session = null;
     var t = today();
     var streak = C.streak(state.days, t);
-    var seen = items.filter(function (i) { return state.items[i.id]; }).length;
     var due = C.dueItems(items, state, t).length;
-    var fresh = Math.min(C.newAllowance(state, t, NEW_PER_DAY), items.length - seen);
-    var doneToday = state.days.indexOf(t) !== -1;
-    var checked = items.filter(function (i) { return state.verified[i.id]; }).length;
+    var learned = seenCount();
+    var cur = C.currentIndex(lessons, state);
 
-    var unseen = items.length - seen;
-    var cta = due + fresh > 0 ? (doneToday ? 'Keep going' : "Start today's lesson") : 'Free practice';
-    var moreBtn = unseen > 0 && fresh === 0
-      ? '<button class="btn ghost" id="learnmore">Learn ' + Math.min(unseen, NEW_PER_DAY) + ' more new items</button>' : '';
-    var units = content.units.map(function (u) {
-      var n = u.items.length;
-      var s = u.items.filter(function (i) { return state.items[i.id]; }).length;
-      return '<li><b>' + esc(u.title) + '</b> <span class="muted small">' + s + ' / ' + n + '</span></li>';
-    }).join('');
+    var html = '<div class="card topcard"><div class="plant sm">' + plantFor(streak) + '</div>' +
+      '<div class="grow"><b>' + (streak ? streak + '-day streak' : 'Plant your first seed') + '</b>' +
+      '<div class="muted small">' + learned + ' learned' + (due ? ' · ' + due + ' due for review' : '') + '</div></div>' +
+      (learned ? '<button class="pill" id="review">' + (due ? 'Review ' + due : 'Practise') + '</button>' : '') + '</div>';
 
-    app.innerHTML =
-      '<div class="card hero"><div class="plant">' + plantFor(streak) + '</div>' +
-      '<h2>' + (streak ? streak + '-day streak' : 'Plant your first seed') + '</h2>' +
-      '<p class="muted">' + (doneToday ? "Today's lesson is done. Nice mahi." : 'A few minutes a day grows a language.') + '</p>' +
-      '<button class="btn" id="go">' + cta + '</button>' + moreBtn + '</div>' +
-      '<div class="stats">' +
-      '<div class="stat"><b>' + seen + '</b><span class="muted small">learned</span></div>' +
-      '<div class="stat"><b>' + due + '</b><span class="muted small">due</span></div>' +
-      '<div class="stat"><b>' + unseen + '</b><span class="muted small">to learn</span></div></div>' +
-      '<div class="card"><h3>Units</h3><ul class="plain">' + units + '</ul></div>' +
-      '<div class="card small muted"><b>Accuracy check:</b> ' + checked + ' of ' + items.length +
+    html += '<p id="hint" class="center muted small" aria-live="polite"></p><div class="path">';
+    var lastUnit = -1, k = 0;
+    lessons.forEach(function (l, i) {
+      if (l.unitIndex !== lastUnit) {
+        lastUnit = l.unitIndex;
+        html += '<div class="unit-banner"><span class="kicker">Unit ' + (l.unitIndex + 1) + '</span><b>' + esc(l.unitTitle) + '</b></div>';
+      }
+      var rec = state.lessons[l.id];
+      var done = C.isDone(state, l), open = C.isUnlocked(lessons, state, i);
+      var cls = 'node' + (done ? ' done' : '') + (i === cur ? ' current' : '') + (!open ? ' locked' : '') + (l.kind === 'review' ? ' review' : '');
+      var icon = !open ? '🔒' : l.kind === 'review' ? '🏆' : done ? '★' : '▶';
+      var off = Math.round(Math.sin(k * 0.9) * 46); k++;
+      html += '<div class="node-wrap" style="transform:translateX(' + off + 'px)">' +
+        '<button class="' + cls + '" data-i="' + i + '" aria-label="' + esc(l.unitTitle + ', ' + l.title) + (open ? '' : ' (locked)') + '"><span>' + icon + '</span></button>' +
+        '<div class="node-label">' + esc(l.title) + (done && rec ? '<br>' + starsHtml(rec.stars || 1) : '') + '</div></div>';
+    });
+    html += '</div>';
+    html += cur === -1
+      ? '<div class="card center"><h3>Path complete 🎉</h3><p class="muted small">Add more units in <code>content/lessons.json</code> and they will appear here.</p></div>'
+      : '';
+    html += '<div class="card small muted"><b>Accuracy check:</b> ' +
+      items.filter(function (i) { return state.verified[i.id]; }).length + ' of ' + items.length +
       ' items marked as checked by you. This content was AI-drafted, so verify each item in Te Aka before trusting it.</div>';
-    $('#go').onclick = function () { startSession('auto'); };
-    if ($('#learnmore')) $('#learnmore').onclick = function () { startSession('learnmore'); };
+    setView(html);
+
+    if ($('#review')) $('#review').onclick = startReview;
+    $all('.node').forEach(function (b) {
+      b.onclick = function () {
+        var i = Number(b.dataset.i);
+        if (!C.isUnlocked(lessons, state, i)) {
+          $('#hint').textContent = 'Finish the previous lesson to unlock this one.';
+          return;
+        }
+        renderLessonIntro(i);
+      };
+    });
+    var here = $('.node.current');
+    if (here && here.scrollIntoView) here.scrollIntoView({ block: 'center' });
   }
 
-  /* ---------- session ---------- */
-  // kind: 'auto' (reviews + daily goal), 'learnmore' (next new items, no daily cap), 'practice' (free practice)
-  function startSession(kind) {
-    var t = today();
-    var built;
-    if (kind === 'learnmore') {
-      built = C.buildLearnMore(items, state, NEW_PER_DAY);
-    } else {
-      built = C.buildSession(items, state, t, { size: SESSION_SIZE, newPerDay: NEW_PER_DAY });
-    }
-    if (kind === 'practice') {
-      var seen = items.filter(function (i) { return state.items[i.id]; });
-      built = {
-        mode: 'practice',
-        steps: C.shuffle(seen).slice(0, SESSION_SIZE).map(function (it) { return { kind: 'quiz', item: it }; })
-      };
-    }
-    if (!built.steps.length) { renderEmpty(); return; }
-    session = {
-      mode: built.mode, steps: built.steps, i: 0,
+  function renderLessonIntro(i) {
+    var l = lessons[i];
+    var rec = state.lessons[l.id];
+    var list = l.itemIds.map(function (id) { return byId[id]; }).filter(Boolean).map(function (it) {
+      return '<li><b>' + esc(it.mi) + '</b> <span class="muted">' + esc(it.en) + '</span></li>';
+    }).join('');
+    setView('<div class="card"><div class="kicker">Unit ' + (l.unitIndex + 1) + ' · ' + esc(l.unitTitle) + '</div>' +
+      '<h2>' + esc(l.title) + '</h2>' +
+      '<p class="muted">' + (l.kind === 'review'
+        ? 'Mixed questions from the whole unit. Type your answers where you can.'
+        : 'Meet these, then practise them twice.') + '</p>' +
+      '<ul class="plain">' + list + '</ul>' +
+      (rec ? '<p class="small muted" style="margin-top:10px">Best result: ' + starsHtml(rec.stars || 1) + '</p>' : '') +
+      '<button class="btn" id="start">' + (rec ? 'Practise again' : 'Start') + '</button>' +
+      '<button class="btn ghost" id="back">Back</button></div>');
+    $('#start').onclick = function () { startLesson(i); };
+    $('#back').onclick = renderHome;
+  }
+
+  /* ---------- sessions ---------- */
+  function newSession(mode, steps, extra) {
+    session = Object.assign({
+      mode: mode, steps: steps, i: 0,
       seenIds: {}, requeued: {}, firstTotal: 0, firstRight: 0, q: null, answered: false
-    };
+    }, extra || {});
+  }
+
+  function startLesson(i) {
+    var l = lessons[i];
+    newSession('lesson', C.lessonSteps(l, byId, state), { lesson: l });
+    renderStep();
+  }
+
+  function startReview() {
+    var built = C.buildReview(items, state, today(), REVIEW_SIZE);
+    if (!built.steps.length) { renderEmpty(); return; }
+    newSession(built.mode, built.steps);
     renderStep();
   }
 
   function renderEmpty() {
-    app.innerHTML = '<div class="card"><h2>Nothing to practise yet</h2><p class="muted">Start a lesson first and come back.</p>' +
-      '<button class="btn" id="back">Back</button></div>';
+    setView('<div class="card"><h2>Nothing to practise yet</h2><p class="muted">Finish a lesson first and come back.</p>' +
+      '<button class="btn" id="back">Back</button></div>');
     $('#back').onclick = renderHome;
   }
 
   function progressBar() {
     var pct = Math.round((session.i / session.steps.length) * 100);
-    return '<div class="progress"><i style="width:' + pct + '%"></i></div>';
+    return '<div class="topbar"><button class="x" id="quit" aria-label="Quit">✕</button>' +
+      '<div class="progress"><i style="width:' + pct + '%"></i></div></div>';
   }
 
   function renderStep() {
     var step = session.steps[session.i];
     if (!step) { renderDone(); return; }
-    if (step.kind === 'learn') renderLearn(step.item); else renderQuiz(step.item);
+    if (step.kind === 'learn') renderLearn(step.item); else renderQuiz(step);
   }
 
   function next() { session.i += 1; renderStep(); }
 
   /* ---------- learn card ---------- */
   function introduce(item) {
-    var t = today();
     if (!state.items[item.id]) {
-      state.items[item.id] = { box: 0, due: t, right: 0, wrong: 0 };
-      var used = state.newToday.date === t ? state.newToday.count : 0;
-      state.newToday = { date: t, count: used + 1 };
+      state.items[item.id] = { box: 0, due: today(), right: 0, wrong: 0 };
       save();
     }
   }
 
   function renderLearn(item) {
     introduce(item);
-    app.innerHTML = progressBar() +
-      '<div class="card"><div class="kicker">New ' + (item.type === 'word' ? 'word' : 'sentence') + ' · ' + esc(item.unitTitle) + '</div>' +
+    setView(progressBar() +
+      '<div class="card"><div class="kicker">New ' + (item.type === 'word' ? 'word' : 'sentence') + '</div>' +
       '<div class="prompt">' + esc(item.mi) + '</div>' +
       '<p>' + esc(item.en) + '</p>' +
       (item.note ? '<p class="muted small">' + esc(item.note) + '</p>' : '') +
       linksFor(item) +
       '<label class="check"><input type="checkbox" id="ver"' + (state.verified[item.id] ? ' checked' : '') + '> I checked this against a trusted source</label>' +
-      '<button class="btn" id="cont">Continue</button></div>';
+      '<button class="btn" id="cont">Continue</button></div>');
     $('#ver').onchange = function (e) {
       if (e.target.checked) state.verified[item.id] = true; else delete state.verified[item.id];
       save();
@@ -153,9 +196,10 @@
   }
 
   /* ---------- quiz ---------- */
-  function makeQuestion(item) {
+  function makeQuestion(step) {
+    var item = step.item;
     var rec = state.items[item.id] || { box: 0 };
-    var kind = C.pickExercise(item, rec.box);
+    var kind = step.round ? C.exerciseFor(item, step.round, rec.box) : C.pickExercise(item, rec.box);
     var q = { kind: kind, item: item };
     function opts(field, correct) {
       return C.shuffle([correct].concat(C.distractorsFor(item, items, field, 3)));
@@ -179,8 +223,8 @@
     return q;
   }
 
-  function renderQuiz(item) {
-    var q = makeQuestion(item);
+  function renderQuiz(step) {
+    var q = makeQuestion(step);
     session.q = q; session.answered = false;
     var body = '';
     if (q.options) {
@@ -194,10 +238,10 @@
       body = '<div class="slot" id="slot"></div><div class="bank" id="bank"></div>' +
         '<button class="btn" id="check" disabled>Check</button>';
     }
-    app.innerHTML = progressBar() +
+    setView(progressBar() +
       '<div class="card"><div class="kicker">' + esc(q.label) + '</div>' +
       '<div class="prompt">' + esc(q.prompt) + '</div>' + body +
-      '<div id="fb"></div></div>';
+      '<div id="fb"></div></div>');
 
     if (q.options) {
       $all('.opt').forEach(function (b) {
@@ -209,7 +253,7 @@
           if (!ok) {
             $all('.opt').forEach(function (o) { if (q.options[Number(o.dataset.i)] === q.correct) o.classList.add('right'); });
           }
-          finishAnswer(ok, ok ? null : q.correct);
+          finishAnswer(step, ok, ok ? null : q.correct);
         };
       });
     } else if (q.kind === 'type') {
@@ -220,7 +264,7 @@
         var m = C.matchTyped(input.value, q.correct);
         input.disabled = true;
         $('#check').style.display = 'none';
-        finishAnswer(m.ok, m.ok ? null : q.correct, m.ok && !m.exact ? q.correct : null);
+        finishAnswer(step, m.ok, m.ok ? null : q.correct, m.ok && !m.exact ? q.correct : null);
       };
       $('#check').onclick = go;
       input.onkeydown = function (e) { if (e.key === 'Enter') go(); };
@@ -232,7 +276,7 @@
         var ok = C.checkBuild(words, q.correct);
         $('#check').style.display = 'none';
         $all('.chip').forEach(function (c) { c.disabled = true; });
-        finishAnswer(ok, ok ? null : q.correct);
+        finishAnswer(step, ok, ok ? null : q.correct);
       };
     }
   }
@@ -269,7 +313,7 @@
     });
   }
 
-  function finishAnswer(correct, shownAnswer, macronHint) {
+  function finishAnswer(step, correct, shownAnswer, macronHint) {
     var q = session.q, item = q.item;
     session.answered = true;
     var first = !session.seenIds[item.id];
@@ -277,21 +321,26 @@
     if (first) {
       session.firstTotal += 1;
       if (correct) session.firstRight += 1;
-      if (session.mode === 'normal') {
-        state.items[item.id] = C.grade(state.items[item.id] || { box: 0, due: today(), right: 0, wrong: 0 }, correct, today());
+      // Reviews always update the schedule. Lessons only do for an item's very first attempts,
+      // so replaying a lesson for stars doesn't distort the review schedule.
+      var rec = state.items[item.id];
+      var gradeable = session.mode === 'review' ||
+        (session.mode === 'lesson' && (!rec || rec.right + rec.wrong === 0));
+      if (gradeable) {
+        state.items[item.id] = C.grade(rec || { box: 0, due: today(), right: 0, wrong: 0 }, correct, today());
         save();
       }
     }
     if (!correct && !session.requeued[item.id]) {
       session.requeued[item.id] = true;
-      session.steps.push({ kind: 'quiz', item: item });
+      session.steps.push(step);
     }
     var cls = correct ? (macronHint ? 'warn' : 'good') : 'bad';
     var head = correct ? (macronHint ? 'Correct, mind the macrons' : 'Correct') : 'Not quite';
     var detail = '';
     if (macronHint) detail = '<div class="ans">' + esc(macronHint) + '</div>';
     else if (!correct) detail = '<div class="ans">' + esc(shownAnswer) + '</div>';
-    var meaning = item.type === 'sentence' || q.kind === 'build' || q.kind === 'mc_sent'
+    var meaning = item.type === 'sentence'
       ? '<div class="small muted">' + esc(item.mi) + ' = ' + esc(item.en) + '</div>' : '';
     $('#fb').innerHTML = '<div class="feedback ' + cls + '"><b>' + head + '</b>' + detail + meaning + '</div>' +
       linksFor(item) + '<button class="btn" id="cont">Continue</button>';
@@ -301,27 +350,44 @@
 
   /* ---------- finish ---------- */
   function renderDone() {
-    var t = today();
-    if (session.mode === 'normal' && state.days.indexOf(t) === -1) { state.days.push(t); save(); }
-    var streak = C.streak(state.days, t);
-    var s = session;
-    var unseen = items.filter(function (i) { return !state.items[i.id]; }).length;
-    app.innerHTML = '<div class="card hero"><div class="plant">' + plantFor(streak) + '</div>' +
-      '<h2>' + (s.mode === 'practice' ? 'Practice complete' : 'Lesson complete') + '</h2>' +
+    var s = session, t = today();
+    if (s.mode !== 'practice' && state.days.indexOf(t) === -1) state.days.push(t);
+
+    if (s.mode === 'lesson') {
+      var stars = C.starsFor(s.firstRight, s.firstTotal);
+      var prev = state.lessons[s.lesson.id];
+      state.lessons[s.lesson.id] = { done: true, stars: Math.max(stars, prev && prev.stars || 0) };
+      save();
+      var streak = C.streak(state.days, t);
+      var isReview = s.lesson.kind === 'review';
+      var cur = C.currentIndex(lessons, state);
+      var nextUp = cur === -1 ? '' : (isReview ? 'Next unit unlocked.' : 'Next lesson unlocked.');
+      setView('<div class="card hero"><div class="plant">' + (isReview ? '🏆' : plantFor(streak)) + '</div>' +
+        '<h2>' + (isReview ? esc(s.lesson.unitTitle) + ' complete!' : 'Lesson complete!') + '</h2>' +
+        '<p class="bigstars">' + starsHtml(stars) + '</p>' +
+        '<p>' + s.firstRight + ' of ' + s.firstTotal + ' right first time.</p>' +
+        '<p class="muted">' + (streak ? streak + '-day streak. ' : '') + nextUp + '</p>' +
+        '<button class="btn" id="home">Continue</button></div>');
+      $('#home').onclick = renderHome;
+      return;
+    }
+
+    save();
+    var st = C.streak(state.days, t);
+    setView('<div class="card hero"><div class="plant">' + plantFor(st) + '</div>' +
+      '<h2>' + (s.mode === 'practice' ? 'Practice complete' : 'Review complete') + '</h2>' +
       '<p>' + s.firstRight + ' of ' + s.firstTotal + ' right first time.</p>' +
-      (s.mode === 'normal' ? '<p class="muted">' + streak + '-day streak. Words you missed come back sooner.</p>' : '<p class="muted">Free practice does not change your review schedule.</p>') +
-      (unseen > 0 ? '<button class="btn" id="learnmore">Learn ' + Math.min(unseen, NEW_PER_DAY) + ' more new items</button>' : '') +
-      '<button class="btn' + (unseen > 0 ? ' ghost' : '') + '" id="more">Practise more</button>' +
-      '<button class="btn ghost" id="home">Done</button></div>';
-    if ($('#learnmore')) $('#learnmore').onclick = function () { startSession('learnmore'); };
-    $('#more').onclick = function () { startSession('practice'); };
+      (s.mode === 'review' ? '<p class="muted">Words you missed come back sooner.</p>' : '<p class="muted">Free practice does not change your review schedule.</p>') +
+      '<button class="btn" id="more">Practise more</button>' +
+      '<button class="btn ghost" id="home">Done</button></div>');
+    $('#more').onclick = startReview;
     $('#home').onclick = renderHome;
   }
 
   /* ---------- sounds ---------- */
   function renderSounds() {
     session = null;
-    app.innerHTML =
+    setView(
       '<div class="card"><h2>Sounds</h2>' +
       '<p>Five vowels, each short or long. A macron (ā ē ī ō ū) marks a long vowel and can change meaning, so always write it.</p>' +
       '<table><tr><th>Vowel</th><th>Short, like</th><th>Long, like</th></tr>' +
@@ -336,7 +402,7 @@
       '<li><b>r</b>: a soft tap or roll.</li>' +
       '<li><b>ng</b>: like the middle of "singer".</li>' +
       '<li><b>wh</b>: in most dialects, close to an English f.</li></ul></div>' +
-      '<div class="card"><h3>Listen</h3>' + resourceList(true) + '</div>';
+      '<div class="card"><h3>Listen</h3>' + resourceList(true) + '</div>');
   }
 
   function resourceList(onlyAudio) {
@@ -351,7 +417,7 @@
   /* ---------- more: word list, resources, data ---------- */
   function renderMore() {
     session = null;
-    app.innerHTML =
+    setView(
       '<div class="card"><h2>More</h2>' +
       '<button class="btn" id="list">Word list &amp; accuracy checks</button>' +
       '<button class="btn ghost" id="res">Resources</button>' +
@@ -359,10 +425,10 @@
       '<button class="btn ghost" id="imp">Import progress</button>' +
       '<input type="file" id="file" accept="application/json" hidden>' +
       '<button class="btn ghost" id="reset">Reset progress</button>' +
-      '<p class="small muted" style="margin-top:12px">Progress is stored in this browser only. Export it to move between devices.</p></div>';
+      '<p class="small muted" style="margin-top:12px">Progress is stored in this browser only. Export it to move between devices.</p></div>');
     $('#list').onclick = renderList;
     $('#res').onclick = function () {
-      app.innerHTML = '<div class="card"><h2>Resources</h2>' + resourceList(false) + '</div>';
+      setView('<div class="card"><h2>Resources</h2>' + resourceList(false) + '</div>');
     };
     $('#exp').onclick = function () {
       var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
@@ -378,7 +444,10 @@
         try {
           var s = JSON.parse(r.result);
           if (!s || typeof s.items !== 'object') throw new Error('bad');
-          state = Object.assign(blank(), s); save(); renderHome();
+          state = Object.assign(blank(), s, { v: s.v });
+          state.lessons = state.lessons || {};
+          if (state.v !== STATE_VERSION) { C.migrate(state, lessons); state.v = STATE_VERSION; }
+          save(); renderHome();
         } catch (err) { alert('That file is not a Kakano progress export.'); }
       };
       r.readAsText(f);
@@ -398,7 +467,7 @@
           '<br><span class="small muted">' + (rec ? 'box ' + rec.box : 'not started') + '</span></span></label></li>';
       }).join('') + '</ul></div>';
     });
-    app.innerHTML = html;
+    setView(html);
     $all('[data-ver]').forEach(function (cb) {
       cb.onchange = function () {
         if (cb.checked) state.verified[cb.dataset.ver] = true; else delete state.verified[cb.dataset.ver];
@@ -408,7 +477,7 @@
   }
 
   /* ---------- boot ---------- */
-  document.getElementById('homeBtn').onclick = renderHome;
+  document.getElementById('homeBtn').onclick = function () { if (content) renderHome(); };
   document.getElementById('soundsBtn').onclick = function () { if (content) renderSounds(); };
   document.getElementById('moreBtn').onclick = function () { if (content) renderMore(); };
 
@@ -416,7 +485,18 @@
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }).then(function (json) {
-    content = json; items = C.flatten(content); state = loadState(); renderHome();
+    content = json;
+    items = C.flatten(content);
+    byId = {}; items.forEach(function (i) { byId[i.id] = i; });
+    lessons = C.makeLessons(content);
+    state = loadState();
+    if (state.v !== STATE_VERSION) {
+      // Progress from before the lesson path existed: credit lessons already learned.
+      C.migrate(state, lessons);
+      state.v = STATE_VERSION;
+      save();
+    }
+    renderHome();
   }).catch(function (err) {
     app.innerHTML = '<div class="card"><h2>Could not load lessons</h2><p>' + esc(err.message) +
       '</p><p class="muted small">Open this through a web server (GitHub Pages, or <code>python3 -m http.server</code>), not by double-clicking the file.</p></div>';

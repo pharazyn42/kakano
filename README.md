@@ -6,13 +6,15 @@ Built for one learner, so there is no backend, no account and no tracking. Progr
 
 ## What it does
 
-- **Daily lesson**: reviews that are due plus a daily goal of 5 new items. The goal is not a cap: **Learn 5 more new items** appears after each lesson, so you can keep going as long as you like
-- **Streak** that grows a little plant
+- **A Duolingo-style path**: each unit is split into short lessons laid out on a trail. Lessons unlock one at a time, and every unit ends with a **Unit review** (🏆) that mixes the whole unit and asks you to type answers. There is no daily limit: do as many lessons as you like
+- **Stars**: 1 to 3 per lesson depending on how many answers you got right first time. Replay any lesson to improve
+- **Inside a lesson**: a card for each new item, then two rounds of questions (recognise, then recall). Missed questions come back once more
+- **Streak** that grows a little plant. Finishing a lesson or a review counts for the day
 - **Exercises**: multiple choice (both directions), typing, and tap-to-build sentences
-- **Spaced repetition**: Leitner boxes with 0, 1, 2, 4, 8 and 16 day gaps. Misses drop two boxes and come back the same session
+- **Spaced repetition**: Leitner boxes with 0, 1, 2, 4, 8 and 16 day gaps, graded on the first time you answer each item. The **Review** button (top of the path) shows how many items are due. Replaying a lesson never changes the schedule
 - **Sounds** page, plus links to real audio from Māori educators and institutions
 - **Te Aka links** on every word, so you can check it as you learn
-- **Free practice** once you're done for the day (does not change your schedule)
+- **Practise** button when nothing is due (free practice, no effect on the schedule)
 - **Export / import** progress to move between devices
 
 ## Run it
@@ -36,7 +38,16 @@ The starter content was **drafted by an AI and has not been checked by a fluent 
 
 ## Editing content
 
-All lessons live in `content/lessons.json`. Items appear in file order.
+All content lives in `content/lessons.json`, grouped into units. Items appear in file order, and each unit is automatically split into lessons of about 4 items (plus a unit review), so adding content never means touching code. Put words before the sentences that use them.
+
+To control the split yourself, give a unit a `lessons` list. Every item in the unit must appear in exactly one lesson (`node tools/validate.js` checks this):
+
+```json
+"lessons": [
+  { "title": "Say hello", "items": ["kia-ora", "tena-koe"] },
+  { "title": "Say goodbye", "items": ["haere-ra", "e-noho-ra"] }
+]
+```
 
 ```json
 { "type": "word", "id": "kai", "mi": "kai", "en": "food; to eat",
@@ -65,7 +76,7 @@ node test/core.test.js
 | --- | --- |
 | `index.html`, `style.css` | Page shell and styles (light and dark) |
 | `app.js` | Screens and interaction |
-| `core.js` | Pure logic: scheduling, grading, session building (unit tested) |
+| `core.js` | Pure logic: path and unlocking, lesson building, scheduling, grading (unit tested) |
 | `content/lessons.json` | The actual language content |
 | `tools/validate.js`, `test/core.test.js` | Content checks and tests |
 

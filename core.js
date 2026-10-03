@@ -4,6 +4,7 @@
 
   var INTERVALS = [0, 1, 2, 4, 8, 16]; // days until next review, by Leitner box
   var MAX_BOX = INTERVALS.length - 1;
+  var LESSON_SIZE = 4;                 // target items per lesson
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -72,6 +73,8 @@
     return a;
   }
 
+  /* ---------- spaced repetition ---------- */
+
   // Update a progress record after an answer.
   function grade(rec, correct, today) {
     var r = { box: 0, due: today, right: 0, wrong: 0 };
@@ -108,50 +111,21 @@
     });
   }
 
-  function newAllowance(state, today, perDay) {
-    var used = state.newToday && state.newToday.date === today ? state.newToday.count : 0;
-    return Math.max(0, perDay - used);
-  }
-
-  // A session is a list of steps: {kind:'learn'|'quiz', item}. newPerDay is a daily
-  // goal, not a limit (buildLearnMore lets you go past it). If nothing is due and
-  // nothing is new, fall back to free practice over items already seen.
-  function buildSession(items, state, today, opts, rng) {
-    opts = opts || {};
-    var size = opts.size || 10, perDay = opts.newPerDay || 5;
+  // Review session: items that are due; if none, free practice over what you've seen.
+  function buildReview(items, state, today, size, rng) {
+    size = size || 10;
     var due = dueItems(items, state, today).slice(0, size);
-    var fresh = items.filter(function (it) { return !state.items[it.id]; })
-      .slice(0, newAllowance(state, today, perDay));
-    var steps = [];
-    due.forEach(function (it) { steps.push({ kind: 'quiz', item: it }); });
-    fresh.forEach(function (it) {
-      steps.push({ kind: 'learn', item: it });
-      steps.push({ kind: 'quiz', item: it });
-    });
-    if (steps.length) return { mode: 'normal', steps: steps };
+    if (due.length) {
+      return { mode: 'review', steps: due.map(function (it) { return { kind: 'quiz', item: it }; }) };
+    }
     var seen = items.filter(function (it) { return state.items[it.id]; });
-    var pick = shuffle(seen, rng).slice(0, size);
     return {
       mode: 'practice',
-      steps: pick.map(function (it) { return { kind: 'quiz', item: it }; })
+      steps: shuffle(seen, rng).slice(0, size).map(function (it) { return { kind: 'quiz', item: it }; })
     };
   }
 
-  function unseenItems(items, state) {
-    return items.filter(function (it) { return !state.items[it.id]; });
-  }
-
-  // "Learn more": the next n unseen items in content order, ignoring the daily goal.
-  function buildLearnMore(items, state, n) {
-    var steps = [];
-    unseenItems(items, state).slice(0, n || 5).forEach(function (it) {
-      steps.push({ kind: 'learn', item: it });
-      steps.push({ kind: 'quiz', item: it });
-    });
-    return { mode: 'normal', steps: steps };
-  }
-
-  // Which exercise to use for an item at a given box.
+  // Which exercise to use for an item at a given box (reviews and practice).
   function pickExercise(item, box, rng) {
     rng = rng || Math.random;
     if (item.type === 'word') {
@@ -164,6 +138,107 @@
     if (box <= 0) return 'mc_sent';
     if (box === 1) return 'build';
     return rng() < 0.7 ? 'build' : 'mc_sent';
+  }
+
+  /* ---------- the lesson path ---------- */
+
+  // Split every unit into short lessons (evenly sized, ~LESSON_SIZE items) followed by a
+  // unit review. A unit can override the split with "lessons": [{ "title", "items": [ids] }].
+  function makeLessons(content, size) {
+    size = size || LESSON_SIZE;
+    var out = [];
+    content.units.forEach(function (u, ui) {
+      var parts = [];
+      if (u.lessons && u.lessons.length) {
+        u.lessons.forEach(function (l, li) {
+          parts.push({ title: l.title || ('Lesson ' + (li + 1)), itemIds: l.items.slice() });
+        });
+      } else {
+        var ids = u.items.map(function (i) { return i.id; });
+        var n = Math.max(1, Math.ceil(ids.length / size));
+        var base = Math.floor(ids.length / n), extra = ids.length % n, pos = 0;
+        for (var k = 0; k < n; k++) {
+          var cnt = base + (k < extra ? 1 : 0);
+          parts.push({ title: 'Lesson ' + (k + 1), itemIds: ids.slice(pos, pos + cnt) });
+          pos += cnt;
+        }
+      }
+      parts.forEach(function (p, pi) {
+        out.push({
+          id: u.id + '-l' + (pi + 1), kind: 'lesson', title: p.title, itemIds: p.itemIds,
+          unitId: u.id, unitTitle: u.title, unitIndex: ui
+        });
+      });
+      out.push({
+        id: u.id + '-review', kind: 'review', title: 'Unit review',
+        itemIds: u.items.map(function (i) { return i.id; }),
+        unitId: u.id, unitTitle: u.title, unitIndex: ui
+      });
+    });
+    return out;
+  }
+
+  function isDone(state, lesson) {
+    return !!(state.lessons && state.lessons[lesson.id] && state.lessons[lesson.id].done);
+  }
+
+  // A lesson is open once the one before it is done (the first is always open).
+  function isUnlocked(lessons, state, index) {
+    return index === 0 || isDone(state, lessons[index - 1]);
+  }
+
+  // Index of the first lesson that isn't done yet (the "you are here" node), or -1 if all done.
+  function currentIndex(lessons, state) {
+    for (var i = 0; i < lessons.length; i++) if (!isDone(state, lessons[i])) return i;
+    return -1;
+  }
+
+  // Introduce unseen items with a card, then two rounds of questions (easier, then harder).
+  // Unit reviews skip the cards and run one mixed round of up to 10 of the harder questions.
+  function lessonSteps(lesson, byId, state, rng) {
+    var its = lesson.itemIds.map(function (id) { return byId[id]; }).filter(Boolean);
+    var steps = [];
+    if (lesson.kind === 'review') {
+      shuffle(its, rng).slice(0, 10).forEach(function (it) { steps.push({ kind: 'quiz', item: it, round: 3 }); });
+      return steps;
+    }
+    its.filter(function (it) { return !state.items[it.id]; })
+      .forEach(function (it) { steps.push({ kind: 'learn', item: it }); });
+    [1, 2].forEach(function (round) {
+      shuffle(its, rng).forEach(function (it) { steps.push({ kind: 'quiz', item: it, round: round }); });
+    });
+    return steps;
+  }
+
+  // Exercise for a lesson round. Round 1 is recognition, 2 is recall, 3 (unit review) is hardest.
+  function exerciseFor(item, round, box) {
+    if (item.type === 'word') {
+      var typeable = item.mi.indexOf('/') === -1;
+      if (round === 1) return box <= 0 ? 'mc_mi_en' : 'mc_en_mi';
+      if (round === 2) return box >= 2 && typeable ? 'type' : 'mc_en_mi';
+      return typeable ? 'type' : 'mc_en_mi';
+    }
+    if (round === 1) return box >= 1 ? 'build' : 'mc_sent';
+    return 'build';
+  }
+
+  function starsFor(right, total) {
+    if (!total) return 1;
+    var r = right / total;
+    return r >= 0.9 ? 3 : r >= 0.7 ? 2 : 1;
+  }
+
+  // First-time upgrade for learners who had progress before the path existed: lessons whose
+  // items are all learned count as done (in order, so nothing is skipped).
+  function migrate(state, lessons) {
+    state.lessons = state.lessons || {};
+    var prevDone = true;
+    lessons.forEach(function (l) {
+      var allSeen = l.itemIds.every(function (id) { return state.items[id]; });
+      if (prevDone && allSeen && !isDone(state, l)) state.lessons[l.id] = { done: true, stars: 1 };
+      prevDone = isDone(state, l);
+    });
+    return state;
   }
 
   // n wrong options for field ('en' or 'mi'), same type, preferring the same unit.
@@ -182,13 +257,14 @@
   }
 
   var api = {
-    INTERVALS: INTERVALS, MAX_BOX: MAX_BOX,
+    INTERVALS: INTERVALS, MAX_BOX: MAX_BOX, LESSON_SIZE: LESSON_SIZE,
     todayStr: todayStr, addDays: addDays, normalize: normalize, strict: strict,
     matchTyped: matchTyped, tokensOf: tokensOf, checkBuild: checkBuild,
     flatten: flatten, shuffle: shuffle, grade: grade, streak: streak,
-    dueItems: dueItems, newAllowance: newAllowance, buildSession: buildSession,
-    unseenItems: unseenItems, buildLearnMore: buildLearnMore,
-    pickExercise: pickExercise, distractorsFor: distractorsFor
+    dueItems: dueItems, buildReview: buildReview, pickExercise: pickExercise,
+    makeLessons: makeLessons, isDone: isDone, isUnlocked: isUnlocked, currentIndex: currentIndex,
+    lessonSteps: lessonSteps, exerciseFor: exerciseFor, starsFor: starsFor, migrate: migrate,
+    distractorsFor: distractorsFor
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
