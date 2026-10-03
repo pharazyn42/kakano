@@ -44,6 +44,7 @@ Each word has a `te_aka_id`: the number in its Te Aka page URL (`maoridictionary
 - The entries were matched by hand against Te Aka on 2026-10-03, picking the right homonym each time (for example *wai* "who" vs "water", *rā* "sun" vs "to wed"). That check also corrected *ae* to **āe**.
 - *ka kite* has no entry of its own in Te Aka (only longer phrases), so it has no audio.
 - Sentences have no audio yet.
+- To avoid a delay when you tap 🔊, the app opens the connection early and starts loading the current lesson's recordings (and the next few questions') before they're needed, then reuses them. The very first tap on a slow connection can still take a moment.
 - Te Aka's site is © John C Moorfield and does not state terms for reusing its audio. This app is for personal study, credits Te Aka in the footer and links to the entry for every word. If you ever share it widely, ask Te Aka / Te Whanake for permission first. If the audio location changes, edit `audio_base`; if a recording stops loading, the app just shows "Couldn't play that audio".
 - To use a recording from somewhere else, give the item an `audio` URL; it takes priority over `te_aka_id`.
 

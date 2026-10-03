@@ -45,7 +45,10 @@
   }
 
   /* ---------- audio ---------- */
-  var player = typeof Audio !== 'undefined' ? new Audio() : null;
+  var audioApi = typeof Audio !== 'undefined';
+  var audioEls = {};   // url -> Audio element. Kept so a recording that has loaded plays instantly next time.
+  var warmed = {};     // urls we've already started loading
+  var nowPlaying = null;
   var toastTimer = null;
 
   function toast(msg) {
@@ -58,16 +61,47 @@
 
   function hasAudio(item) { return !!C.audioUrl(item, content.meta); }
 
+  function audioEl(url) {
+    if (!audioEls[url]) {
+      var a = new Audio();
+      a.preload = 'auto';
+      a.src = url;
+      audioEls[url] = a;
+    }
+    return audioEls[url];
+  }
+
+  // Start loading recordings before they're needed, so the Listen button doesn't wait on the network.
+  function warm(list) {
+    if (!audioApi) return;
+    list.forEach(function (it) {
+      var url = it && C.audioUrl(it, content.meta);
+      if (!url || warmed[url]) return;
+      warmed[url] = true;
+      audioEl(url);
+      try { fetch(url, { mode: 'no-cors' }).catch(function () { /* just a warm-up */ }); } catch (e) { /* ignore */ }
+    });
+  }
+
+  function warmIds(ids) { warm(ids.map(function (id) { return byId[id]; })); }
+
   // quiet = automatic playback: stay silent if the browser blocks it or the file won't load.
   function playItem(item, quiet) {
     var url = item && C.audioUrl(item, content.meta);
-    if (!url || !player) return;
+    if (!url || !audioApi) return;
+    function failed() {
+      // Forget the element so the next tap starts a fresh request instead of reusing a broken one.
+      delete audioEls[url]; delete warmed[url];
+      if (!quiet) toast("Couldn't play that audio. Check your connection.");
+    }
     try {
-      player.pause();
-      player.src = url;
-      var p = player.play();
-      if (p && p.catch) p.catch(function () { if (!quiet) toast("Couldn't play that audio. Check your connection."); });
-    } catch (e) { if (!quiet) toast("Couldn't play that audio."); }
+      var a = audioEl(url);
+      if (nowPlaying && nowPlaying !== a) nowPlaying.pause();
+      try { a.currentTime = 0; } catch (e) { /* not loaded yet: it will start from the beginning anyway */ }
+      nowPlaying = a;
+      var p = a.play();
+      if (p && p.catch) p.catch(failed);
+    } catch (e) { failed(); }
   }
 
   function autoplay(item) { if (state.settings.autoplay) playItem(item, true); }
@@ -153,6 +187,7 @@
     });
     var here = $('.node.current');
     if (here && here.scrollIntoView) here.scrollIntoView({ block: 'center' });
+    if (cur !== -1) warmIds(lessons[cur].itemIds);
   }
 
   function renderLessonIntro(i) {
@@ -173,6 +208,7 @@
       '<button class="btn" id="start">' + (rec ? 'Practise again' : 'Start') + '</button>' +
       '<button class="btn ghost" id="back">Back</button></div>');
     $('#start').onclick = function () { startLesson(i); };
+    warmIds(l.itemIds);
     $('#back').onclick = renderHome;
   }
 
@@ -187,6 +223,7 @@
   function startLesson(i) {
     var l = lessons[i];
     newSession('lesson', C.lessonSteps(l, byId, state), { lesson: l });
+    warmIds(l.itemIds);
     renderStep();
   }
 
@@ -212,6 +249,7 @@
   function renderStep() {
     var step = session.steps[session.i];
     if (!step) { renderDone(); return; }
+    warm(session.steps.slice(session.i, session.i + 4).map(function (s) { return s.item; }));
     if (step.kind === 'learn') renderLearn(step.item); else renderQuiz(step);
   }
 
@@ -543,6 +581,12 @@
   }).then(function (json) {
     content = json;
     content.meta = content.meta || {};
+    try { // open the connection to the audio host early; saves a round of setup on the first tap
+      var link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = new URL(content.meta.audio_base).origin;
+      document.head.appendChild(link);
+    } catch (e) { /* no audio host configured */ }
     var credit = document.getElementById('credit');
     if (credit && content.meta.audio_credit) credit.textContent = content.meta.audio_credit;
     items = C.flatten(content);
