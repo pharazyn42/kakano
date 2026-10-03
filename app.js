@@ -241,7 +241,7 @@
   function newSession(mode, steps, extra) {
     session = Object.assign({
       mode: mode, steps: steps, i: 0,
-      seenIds: {}, requeued: {}, firstTotal: 0, firstRight: 0, q: null, answered: false
+      seenIds: {}, scored: {}, requeued: {}, firstTotal: 0, firstRight: 0, q: null, answered: false
     }, extra || {});
   }
 
@@ -430,9 +430,15 @@
     session.answered = true;
     var first = !session.seenIds[item.id];
     session.seenIds[item.id] = true;
-    if (first) {
+    // The score counts the first answer to every question (each item in each round), so mistakes in the
+    // harder second round count too. Retries of a missed question don't.
+    var scoreKey = item.id + ':' + (step.round || 0);
+    if (!session.scored[scoreKey]) {
+      session.scored[scoreKey] = true;
       session.firstTotal += 1;
       if (correct) session.firstRight += 1;
+    }
+    if (first) {
       // Reviews always update the schedule. Lessons only do for an item's very first attempts,
       // so replaying a lesson for stars doesn't distort the review schedule.
       var rec = state.items[item.id];
