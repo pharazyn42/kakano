@@ -6,7 +6,7 @@ Built for one learner, so there is no backend, no account and no tracking. Progr
 
 ## What it does
 
-- **Daily lesson** of up to 10 questions, with up to 5 new items a day
+- **Daily lesson**: reviews that are due plus a daily goal of 5 new items. The goal is not a cap: **Learn 5 more new items** appears after each lesson, so you can keep going as long as you like
 - **Streak** that grows a little plant
 - **Exercises**: multiple choice (both directions), typing, and tap-to-build sentences
 - **Spaced repetition**: Leitner boxes with 0, 1, 2, 4, 8 and 16 day gaps. Misses drop two boxes and come back the same session

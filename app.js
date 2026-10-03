@@ -54,7 +54,10 @@
     var doneToday = state.days.indexOf(t) !== -1;
     var checked = items.filter(function (i) { return state.verified[i.id]; }).length;
 
+    var unseen = items.length - seen;
     var cta = due + fresh > 0 ? (doneToday ? 'Keep going' : "Start today's lesson") : 'Free practice';
+    var moreBtn = unseen > 0 && fresh === 0
+      ? '<button class="btn ghost" id="learnmore">Learn ' + Math.min(unseen, NEW_PER_DAY) + ' more new items</button>' : '';
     var units = content.units.map(function (u) {
       var n = u.items.length;
       var s = u.items.filter(function (i) { return state.items[i.id]; }).length;
@@ -65,22 +68,29 @@
       '<div class="card hero"><div class="plant">' + plantFor(streak) + '</div>' +
       '<h2>' + (streak ? streak + '-day streak' : 'Plant your first seed') + '</h2>' +
       '<p class="muted">' + (doneToday ? "Today's lesson is done. Nice mahi." : 'A few minutes a day grows a language.') + '</p>' +
-      '<button class="btn" id="go">' + cta + '</button></div>' +
+      '<button class="btn" id="go">' + cta + '</button>' + moreBtn + '</div>' +
       '<div class="stats">' +
       '<div class="stat"><b>' + seen + '</b><span class="muted small">learned</span></div>' +
       '<div class="stat"><b>' + due + '</b><span class="muted small">due</span></div>' +
-      '<div class="stat"><b>' + fresh + '</b><span class="muted small">new today</span></div></div>' +
+      '<div class="stat"><b>' + unseen + '</b><span class="muted small">to learn</span></div></div>' +
       '<div class="card"><h3>Units</h3><ul class="plain">' + units + '</ul></div>' +
       '<div class="card small muted"><b>Accuracy check:</b> ' + checked + ' of ' + items.length +
       ' items marked as checked by you. This content was AI-drafted, so verify each item in Te Aka before trusting it.</div>';
-    $('#go').onclick = function () { startSession(false); };
+    $('#go').onclick = function () { startSession('auto'); };
+    if ($('#learnmore')) $('#learnmore').onclick = function () { startSession('learnmore'); };
   }
 
   /* ---------- session ---------- */
-  function startSession(forcePractice) {
+  // kind: 'auto' (reviews + daily goal), 'learnmore' (next new items, no daily cap), 'practice' (free practice)
+  function startSession(kind) {
     var t = today();
-    var built = C.buildSession(items, state, t, { size: SESSION_SIZE, newPerDay: NEW_PER_DAY });
-    if (forcePractice) {
+    var built;
+    if (kind === 'learnmore') {
+      built = C.buildLearnMore(items, state, NEW_PER_DAY);
+    } else {
+      built = C.buildSession(items, state, t, { size: SESSION_SIZE, newPerDay: NEW_PER_DAY });
+    }
+    if (kind === 'practice') {
       var seen = items.filter(function (i) { return state.items[i.id]; });
       built = {
         mode: 'practice',
@@ -295,13 +305,16 @@
     if (session.mode === 'normal' && state.days.indexOf(t) === -1) { state.days.push(t); save(); }
     var streak = C.streak(state.days, t);
     var s = session;
+    var unseen = items.filter(function (i) { return !state.items[i.id]; }).length;
     app.innerHTML = '<div class="card hero"><div class="plant">' + plantFor(streak) + '</div>' +
       '<h2>' + (s.mode === 'practice' ? 'Practice complete' : 'Lesson complete') + '</h2>' +
       '<p>' + s.firstRight + ' of ' + s.firstTotal + ' right first time.</p>' +
       (s.mode === 'normal' ? '<p class="muted">' + streak + '-day streak. Words you missed come back sooner.</p>' : '<p class="muted">Free practice does not change your review schedule.</p>') +
-      '<button class="btn" id="more">Practise more</button>' +
+      (unseen > 0 ? '<button class="btn" id="learnmore">Learn ' + Math.min(unseen, NEW_PER_DAY) + ' more new items</button>' : '') +
+      '<button class="btn' + (unseen > 0 ? ' ghost' : '') + '" id="more">Practise more</button>' +
       '<button class="btn ghost" id="home">Done</button></div>';
-    $('#more').onclick = function () { startSession(true); };
+    if ($('#learnmore')) $('#learnmore').onclick = function () { startSession('learnmore'); };
+    $('#more').onclick = function () { startSession('practice'); };
     $('#home').onclick = renderHome;
   }
 

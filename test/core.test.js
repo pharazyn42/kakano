@@ -94,6 +94,19 @@ test('falls back to practice mode when nothing due or new', () => {
   assert.strictEqual(s.steps.length, 10);
 });
 
+test('learn more ignores the daily goal and continues in content order', () => {
+  const st = blank();
+  items.slice(0, 5).forEach((it) => { st.items[it.id] = { box: 1, due: '2026-10-04', right: 1, wrong: 0 }; });
+  st.newToday = { date: T, count: 5 };
+  assert.strictEqual(C.newAllowance(st, T, 5), 0);
+  const s = C.buildLearnMore(items, st, 5);
+  assert.strictEqual(s.mode, 'normal');
+  assert.deepStrictEqual(s.steps.filter((x) => x.kind === 'learn').map((x) => x.item.id), items.slice(5, 10).map((i) => i.id));
+  const all = blank();
+  items.forEach((it) => { all.items[it.id] = { box: 1, due: T, right: 1, wrong: 0 }; });
+  assert.strictEqual(C.buildLearnMore(items, all, 5).steps.length, 0);
+});
+
 test('pickExercise ramps difficulty', () => {
   const w = items.find((i) => i.type === 'word');
   const s = items.find((i) => i.type === 'sentence');

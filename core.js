@@ -113,7 +113,8 @@
     return Math.max(0, perDay - used);
   }
 
-  // A session is a list of steps: {kind:'learn'|'quiz', item}. If nothing is due and
+  // A session is a list of steps: {kind:'learn'|'quiz', item}. newPerDay is a daily
+  // goal, not a limit (buildLearnMore lets you go past it). If nothing is due and
   // nothing is new, fall back to free practice over items already seen.
   function buildSession(items, state, today, opts, rng) {
     opts = opts || {};
@@ -134,6 +135,20 @@
       mode: 'practice',
       steps: pick.map(function (it) { return { kind: 'quiz', item: it }; })
     };
+  }
+
+  function unseenItems(items, state) {
+    return items.filter(function (it) { return !state.items[it.id]; });
+  }
+
+  // "Learn more": the next n unseen items in content order, ignoring the daily goal.
+  function buildLearnMore(items, state, n) {
+    var steps = [];
+    unseenItems(items, state).slice(0, n || 5).forEach(function (it) {
+      steps.push({ kind: 'learn', item: it });
+      steps.push({ kind: 'quiz', item: it });
+    });
+    return { mode: 'normal', steps: steps };
   }
 
   // Which exercise to use for an item at a given box.
@@ -172,6 +187,7 @@
     matchTyped: matchTyped, tokensOf: tokensOf, checkBuild: checkBuild,
     flatten: flatten, shuffle: shuffle, grade: grade, streak: streak,
     dueItems: dueItems, newAllowance: newAllowance, buildSession: buildSession,
+    unseenItems: unseenItems, buildLearnMore: buildLearnMore,
     pickExercise: pickExercise, distractorsFor: distractorsFor
   };
 
