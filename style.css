@@ -172,3 +172,8 @@ ul.plain li:last-child { border-bottom: 0; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .foot { max-width: 560px; margin: 0 auto; padding: 0 16px 28px; text-align: center; font-size: 0.78rem; color: var(--muted); }
+.play {
+  font: inherit; font-size: 0.88rem; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line);
+  background: var(--card); color: var(--green); cursor: pointer; white-space: nowrap;
+}
+ul.plain li.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

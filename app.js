@@ -159,13 +159,15 @@
     var l = lessons[i];
     var rec = state.lessons[l.id];
     var list = l.itemIds.map(function (id) { return byId[id]; }).filter(Boolean).map(function (it) {
-      return '<li><b>' + esc(it.mi) + '</b> <span class="muted">' + esc(it.en) + '</span></li>';
+      return '<li class="row"><span><b>' + esc(it.mi) + '</b> <span class="muted">' + esc(it.en) + '</span></span>' + playBtn(it) + '</li>';
     }).join('');
+    var anyAudio = l.itemIds.some(function (id) { return byId[id] && hasAudio(byId[id]); });
     setView('<div class="card"><div class="kicker">Unit ' + (l.unitIndex + 1) + ' · ' + esc(l.unitTitle) + '</div>' +
       '<h2>' + esc(l.title) + '</h2>' +
       '<p class="muted">' + (l.kind === 'review'
         ? 'Mixed questions from the whole unit. Type your answers where you can.'
         : 'Meet these, then practise them twice.') + '</p>' +
+      (anyAudio ? '<p class="small muted">Tap 🔊 to hear a word.</p>' : '') +
       '<ul class="plain">' + list + '</ul>' +
       (rec ? '<p class="small muted" style="margin-top:10px">Best result: ' + starsHtml(rec.stars || 1) + '</p>' : '') +
       '<button class="btn" id="start">' + (rec ? 'Practise again' : 'Start') + '</button>' +
