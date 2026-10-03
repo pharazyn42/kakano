@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "title": "Kakano",
+    "note": "Everything here was drafted by an AI and has NOT been checked by a fluent speaker. Verify each item against Te Aka (maoridictionary.co.nz) and mark it checked in the app. Fix mistakes by editing this file."
+  },
+  "units": [
+    {
+      "id": "u1",
+      "title": "Greetings",
+      "items": [
+        { "type": "word", "id": "kia-ora", "mi": "kia ora", "en": "hello; thanks", "note": "A general greeting that is also used to say thank you." },
+        { "type": "word", "id": "tena-koe", "mi": "tēnā koe", "en": "hello (to one person)" },
+        { "type": "word", "id": "tena-koutou", "mi": "tēnā koutou", "en": "hello (to three or more people)" },
+        { "type": "word", "id": "morena", "mi": "mōrena", "en": "good morning" },
+        { "type": "word", "id": "ka-kite", "mi": "ka kite", "en": "see you" },
+        { "type": "word", "id": "haere-ra", "mi": "haere rā", "en": "goodbye (to someone leaving)" },
+        { "type": "word", "id": "e-noho-ra", "mi": "e noho rā", "en": "goodbye (to someone staying)" },
+        { "type": "word", "id": "ae", "mi": "ae", "en": "yes" },
+        { "type": "word", "id": "kao", "mi": "kāo", "en": "no" },
+        { "type": "word", "id": "pai", "mi": "pai", "en": "good" }
+      ]
+    },
+    {
+      "id": "u2",
+      "title": "About me",
+      "items": [
+        { "type": "word", "id": "au", "mi": "au", "en": "I; me" },
+        { "type": "word", "id": "koe", "mi": "koe", "en": "you (one person)" },
+        { "type": "word", "id": "ia", "mi": "ia", "en": "he; she" },
+        { "type": "word", "id": "ingoa", "mi": "ingoa", "en": "name" },
+        { "type": "word", "id": "wai", "mi": "wai", "en": "who (also: water)", "note": "Used in 'Ko wai tōu ingoa?'. It also means water." },
+        { "type": "sentence", "id": "s-kei-te-pehea", "mi": "Kei te pēhea koe?", "en": "How are you?", "distractors": ["au", "pai"], "note": "Pattern: Kei te + state + person." },
+        { "type": "sentence", "id": "s-kei-te-pai-au", "mi": "Kei te pai au.", "en": "I am good.", "distractors": ["koe", "ia"] },
+        { "type": "sentence", "id": "s-ko-hemi", "mi": "Ko Hemi tōku ingoa.", "en": "My name is Hemi.", "distractors": ["tōu", "wai"], "note": "Ko introduces a name or identity." },
+        { "type": "sentence", "id": "s-ko-wai", "mi": "Ko wai tōu ingoa?", "en": "What is your name?", "distractors": ["tōku", "koe"] }
+      ]
+    },
+    {
+      "id": "u3",
+      "title": "People",
+      "items": [
+        { "type": "word", "id": "whanau", "mi": "whānau", "en": "family" },
+        { "type": "word", "id": "tamaiti", "mi": "tamaiti", "en": "child" },
+        { "type": "word", "id": "tane", "mi": "tāne", "en": "man" },
+        { "type": "word", "id": "wahine", "mi": "wahine", "en": "woman" },
+        { "type": "word", "id": "kuia", "mi": "kuia", "en": "elderly woman" },
+        { "type": "word", "id": "koroua", "mi": "koroua", "en": "elderly man" },
+        { "type": "sentence", "id": "s-he-tane-ia", "mi": "He tāne ia.", "en": "He is a man.", "distractors": ["wahine", "kei"], "note": "Pattern: He + noun + person means 'is a ...'." },
+        { "type": "sentence", "id": "s-he-wahine-ia", "mi": "He wahine ia.", "en": "She is a woman.", "distractors": ["tāne", "kei"] }
+      ]
+    },
+    {
+      "id": "u4",
+      "title": "Everyday things",
+      "items": [
+        { "type": "word", "id": "kai", "mi": "kai", "en": "food; to eat" },
+        { "type": "word", "id": "whare", "mi": "whare", "en": "house" },
+        { "type": "word", "id": "ika", "mi": "ika", "en": "fish" },
+        { "type": "word", "id": "manu", "mi": "manu", "en": "bird" },
+        { "type": "word", "id": "ra", "mi": "rā", "en": "day; sun" },
+        { "type": "word", "id": "po", "mi": "pō", "en": "night" },
+        { "type": "word", "id": "moe", "mi": "moe", "en": "to sleep" },
+        { "type": "word", "id": "inu", "mi": "inu", "en": "to drink" },
+        { "type": "word", "id": "haere", "mi": "haere", "en": "to go" },
+        { "type": "word", "id": "nui", "mi": "nui", "en": "big" },
+        { "type": "word", "id": "iti", "mi": "iti", "en": "small" },
+        { "type": "word", "id": "ataahua", "mi": "ātaahua", "en": "beautiful" },
+        { "type": "sentence", "id": "s-kei-te-kai", "mi": "Kei te kai au.", "en": "I am eating.", "distractors": ["inu", "koe"] },
+        { "type": "sentence", "id": "s-kei-te-inu", "mi": "Kei te inu koe i te wai.", "en": "You are drinking water.", "distractors": ["kai", "au"], "note": "i marks the thing being acted on." },
+        { "type": "sentence", "id": "s-kei-te-moe", "mi": "Kei te moe te tamaiti.", "en": "The child is sleeping.", "distractors": ["kai", "whare"] },
+        { "type": "sentence", "id": "s-kei-te-haere", "mi": "Kei te haere au ki te whare.", "en": "I am going to the house.", "distractors": ["i", "koe"] },
+        { "type": "sentence", "id": "s-he-ika-tenei", "mi": "He ika tēnei.", "en": "This is a fish.", "distractors": ["tērā", "manu"], "note": "tēnei = this (near me), tērā = that (over there)." },
+        { "type": "sentence", "id": "s-he-manu-tera", "mi": "He manu tērā.", "en": "That is a bird.", "distractors": ["tēnei", "ika"] },
+        { "type": "sentence", "id": "s-kei-te-ataahua", "mi": "Kei te ātaahua te rā.", "en": "The day is beautiful.", "distractors": ["pai", "pō"] }
+      ]
+    }
+  ],
+  "resources": [
+    { "title": "Te Aka Māori Dictionary", "url": "https://maoridictionary.co.nz/", "about": "Look up every word here and check the macrons." },
+    { "title": "Pronunciation guide (Victoria University of Wellington)", "url": "https://www.wgtn.ac.nz/maori-hub/rauemi/te-reo-at-university/te-reo-maori-pronunciation-guide", "about": "Vowels, t and r, and the ng and wh digraphs." },
+    { "title": "Pronunciation guide with audio (Te Kete Ipurangi)", "url": "https://tereomaori.tki.org.nz/Reo-Maori-resources/Ka-Mau-te-Wehi/Introduction-to-teaching-Te-Reo-Maori/Pronunciation-guide", "about": "Click each letter to hear it." },
+    { "title": "Te Whanake podcast", "url": "https://podcast.tewhanake.maori.nz", "about": "Audio and video exercises from the Te Whanake textbooks." },
+    { "title": "Kupu o te Rā", "url": "https://kupu.maori.nz/", "about": "A word of the day, checked by a native speaker." }
+  ]
+}
