@@ -241,6 +241,23 @@
     return state;
   }
 
+  /* ---------- Te Aka links and audio ---------- */
+
+  // Direct audio URL for an item: an explicit "audio", else Te Aka's recording for its entry id.
+  function audioUrl(item, meta) {
+    if (item.audio) return item.audio;
+    if (item.te_aka_id && meta && meta.audio_base) return meta.audio_base + item.te_aka_id + '.mp3';
+    return '';
+  }
+
+  // Dictionary page for an item: explicit link, else the exact Te Aka entry, else a search (words only).
+  function dictionaryUrl(item, meta) {
+    if (item.dictionary_link) return item.dictionary_link;
+    if (item.te_aka_id && meta && meta.dictionary_base) return meta.dictionary_base + item.te_aka_id;
+    if (item.type === 'word') return 'https://maoridictionary.co.nz/search?keywords=' + encodeURIComponent(item.mi);
+    return '';
+  }
+
   // n wrong options for field ('en' or 'mi'), same type, preferring the same unit.
   function distractorsFor(item, pool, field, n, rng) {
     var cand = pool.filter(function (p) {
@@ -264,7 +281,7 @@
     dueItems: dueItems, buildReview: buildReview, pickExercise: pickExercise,
     makeLessons: makeLessons, isDone: isDone, isUnlocked: isUnlocked, currentIndex: currentIndex,
     lessonSteps: lessonSteps, exerciseFor: exerciseFor, starsFor: starsFor, migrate: migrate,
-    distractorsFor: distractorsFor
+    distractorsFor: distractorsFor, audioUrl: audioUrl, dictionaryUrl: dictionaryUrl
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

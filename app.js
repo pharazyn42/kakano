@@ -13,11 +13,17 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function blank() { return { v: STATE_VERSION, items: {}, days: [], lessons: {}, verified: {} }; }
+  function blank() { return { v: STATE_VERSION, items: {}, days: [], lessons: {}, verified: {}, settings: { autoplay: true } }; }
+  function normalizeState(s) {
+    s.lessons = s.lessons || {};
+    s.verified = s.verified || {};
+    s.settings = Object.assign({ autoplay: true }, s.settings);
+    return s;
+  }
   function loadState() {
     try {
       var s = JSON.parse(localStorage.getItem(LS_KEY));
-      if (s && s.items) { s = Object.assign(blank(), s, { v: s.v }); s.lessons = s.lessons || {}; return s; }
+      if (s && s.items) return normalizeState(Object.assign(blank(), s, { v: s.v }));
     } catch (e) { /* fall through */ }
     return blank();
   }
@@ -38,15 +44,54 @@
     };
   }
 
+  /* ---------- audio ---------- */
+  var player = typeof Audio !== 'undefined' ? new Audio() : null;
+  var toastTimer = null;
+
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 3000);
+  }
+
+  function hasAudio(item) { return !!C.audioUrl(item, content.meta); }
+
+  // quiet = automatic playback: stay silent if the browser blocks it or the file won't load.
+  function playItem(item, quiet) {
+    var url = item && C.audioUrl(item, content.meta);
+    if (!url || !player) return;
+    try {
+      player.pause();
+      player.src = url;
+      var p = player.play();
+      if (p && p.catch) p.catch(function () { if (!quiet) toast("Couldn't play that audio. Check your connection."); });
+    } catch (e) { if (!quiet) toast("Couldn't play that audio."); }
+  }
+
+  function autoplay(item) { if (state.settings.autoplay) playItem(item, true); }
+
+  function playBtn(item) {
+    return hasAudio(item)
+      ? '<button class="play" data-play="' + esc(item.id) + '" aria-label="Play pronunciation of ' + esc(item.mi) + '">🔊 Listen</button>'
+      : '';
+  }
+
   function linksFor(item) {
     var out = [];
-    var dict = item.dictionary_link ||
-      (item.type === 'word' ? 'https://maoridictionary.co.nz/search?keywords=' + encodeURIComponent(item.mi) : '');
+    if (hasAudio(item)) out.push(playBtn(item));
+    var dict = C.dictionaryUrl(item, content.meta);
     if (dict) out.push('<a href="' + esc(dict) + '" target="_blank" rel="noopener">Te Aka</a>');
-    if (item.audio_link) out.push('<a href="' + esc(item.audio_link) + '" target="_blank" rel="noopener">Listen</a>');
+    if (item.audio_link) out.push('<a href="' + esc(item.audio_link) + '" target="_blank" rel="noopener">More audio</a>');
     if (item.video_link) out.push('<a href="' + esc(item.video_link) + '" target="_blank" rel="noopener">Watch</a>');
     return out.length ? '<div class="links">' + out.join('') + '</div>' : '';
   }
+
+  app.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-play]');
+    if (b && byId) playItem(byId[b.getAttribute('data-play')], false);
+  });
 
   function plantFor(n) {
     if (n >= 14) return '🌸';
@@ -193,6 +238,7 @@
       save();
     };
     $('#cont').onclick = next;
+    autoplay(item);
   }
 
   /* ---------- quiz ---------- */
@@ -240,8 +286,9 @@
     }
     setView(progressBar() +
       '<div class="card"><div class="kicker">' + esc(q.label) + '</div>' +
-      '<div class="prompt">' + esc(q.prompt) + '</div>' + body +
-      '<div id="fb"></div></div>');
+      '<div class="prompt">' + esc(q.prompt) + '</div>' +
+      (q.kind === 'mc_mi_en' && hasAudio(q.item) ? '<div class="links">' + playBtn(q.item) + '</div>' : '') +
+      body + '<div id="fb"></div></div>');
 
     if (q.options) {
       $all('.opt').forEach(function (b) {
@@ -346,6 +393,7 @@
       linksFor(item) + '<button class="btn" id="cont">Continue</button>';
     $('#cont').focus();
     $('#cont').onclick = next;
+    if (item.type === 'word') autoplay(item);
   }
 
   /* ---------- finish ---------- */
@@ -424,6 +472,7 @@
       '<button class="btn ghost" id="exp">Export progress</button>' +
       '<button class="btn ghost" id="imp">Import progress</button>' +
       '<input type="file" id="file" accept="application/json" hidden>' +
+      '<button class="btn ghost" id="snd">Auto-play sound: ' + (state.settings.autoplay ? 'On' : 'Off') + '</button>' +
       '<button class="btn ghost" id="reset">Reset progress</button>' +
       '<p class="small muted" style="margin-top:12px">Progress is stored in this browser only. Export it to move between devices.</p></div>');
     $('#list').onclick = renderList;
@@ -444,13 +493,17 @@
         try {
           var s = JSON.parse(r.result);
           if (!s || typeof s.items !== 'object') throw new Error('bad');
-          state = Object.assign(blank(), s, { v: s.v });
-          state.lessons = state.lessons || {};
+          state = normalizeState(Object.assign(blank(), s, { v: s.v }));
           if (state.v !== STATE_VERSION) { C.migrate(state, lessons); state.v = STATE_VERSION; }
           save(); renderHome();
         } catch (err) { alert('That file is not a Kakano progress export.'); }
       };
       r.readAsText(f);
+    };
+    $('#snd').onclick = function () {
+      state.settings.autoplay = !state.settings.autoplay;
+      save();
+      $('#snd').textContent = 'Auto-play sound: ' + (state.settings.autoplay ? 'On' : 'Off');
     };
     $('#reset').onclick = function () {
       if (confirm('Erase all progress on this device?')) { state = blank(); save(); renderHome(); }
@@ -464,7 +517,8 @@
         var rec = state.items[it.id];
         return '<li><label class="check" style="margin:0"><input type="checkbox" data-ver="' + esc(it.id) + '"' + (state.verified[it.id] ? ' checked' : '') + '>' +
           '<span><b>' + esc(it.mi) + '</b> <span class="muted">' + esc(it.en) + '</span>' +
-          '<br><span class="small muted">' + (rec ? 'box ' + rec.box : 'not started') + '</span></span></label></li>';
+          '<br><span class="small muted">' + (rec ? 'box ' + rec.box : 'not started') + '</span></span></label>' +
+          (hasAudio(it) ? '<div class="links">' + playBtn(it) + '</div>' : '') + '</li>';
       }).join('') + '</ul></div>';
     });
     setView(html);
@@ -486,6 +540,9 @@
     return r.json();
   }).then(function (json) {
     content = json;
+    content.meta = content.meta || {};
+    var credit = document.getElementById('credit');
+    if (credit && content.meta.audio_credit) credit.textContent = content.meta.audio_credit;
     items = C.flatten(content);
     byId = {}; items.forEach(function (i) { byId[i.id] = i; });
     lessons = C.makeLessons(content);

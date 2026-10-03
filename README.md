@@ -13,7 +13,8 @@ Built for one learner, so there is no backend, no account and no tracking. Progr
 - **Exercises**: multiple choice (both directions), typing, and tap-to-build sentences
 - **Spaced repetition**: Leitner boxes with 0, 1, 2, 4, 8 and 16 day gaps, graded on the first time you answer each item. The **Review** button (top of the path) shows how many items are due. Replaying a lesson never changes the schedule
 - **Sounds** page, plus links to real audio from Māori educators and institutions
-- **Te Aka links** on every word, so you can check it as you learn
+- **Pronunciation audio** from Te Aka on 32 of the 33 words: plays automatically on new-word cards and after you answer, and there is a 🔊 Listen button wherever a word appears (including the word list). Turn auto-play off in **More**
+- **Te Aka links** on every word, straight to the exact dictionary entry, so you can check it as you learn
 - **Practise** button when nothing is due (free practice, no effect on the schedule)
 - **Export / import** progress to move between devices
 
@@ -36,6 +37,16 @@ The starter content was **drafted by an AI and has not been checked by a fluent 
 - Every word links straight to its Te Aka search.
 - Fix mistakes by editing `content/lessons.json`. No code changes needed.
 
+## Audio and licensing
+
+Each word has a `te_aka_id`: the number in its Te Aka page URL (`maoridictionary.co.nz/word/1684` is *ika*). Te Aka's recording for an entry lives at the same number, and the app plays it straight from Te Aka's own public storage (`audio_base` in the content file). **No audio files are copied into this repo.**
+
+- The entries were matched by hand against Te Aka on 2026-10-03, picking the right homonym each time (for example *wai* "who" vs "water", *rā* "sun" vs "to wed"). That check also corrected *ae* to **āe**.
+- *ka kite* has no entry of its own in Te Aka (only longer phrases), so it has no audio.
+- Sentences have no audio yet.
+- Te Aka's site is © John C Moorfield and does not state terms for reusing its audio. This app is for personal study, credits Te Aka in the footer and links to the entry for every word. If you ever share it widely, ask Te Aka / Te Whanake for permission first. If the audio location changes, edit `audio_base`; if a recording stops loading, the app just shows "Couldn't play that audio".
+- To use a recording from somewhere else, give the item an `audio` URL; it takes priority over `te_aka_id`.
+
 ## Editing content
 
 All content lives in `content/lessons.json`, grouped into units. Items appear in file order, and each unit is automatically split into lessons of about 4 items (plus a unit review), so adding content never means touching code. Put words before the sentences that use them.
@@ -50,9 +61,9 @@ To control the split yourself, give a unit a `lessons` list. Every item in the u
 ```
 
 ```json
-{ "type": "word", "id": "kai", "mi": "kai", "en": "food; to eat",
+{ "type": "word", "id": "kai", "te_aka_id": 1894, "mi": "kai", "en": "food; to eat",
   "note": "optional hint",
-  "audio_link": "https://…", "video_link": "https://…", "dictionary_link": "https://…" }
+  "audio": "https://…", "audio_link": "https://…", "video_link": "https://…", "dictionary_link": "https://…" }
 
 { "type": "sentence", "id": "s-kei-te-kai", "mi": "Kei te kai au.", "en": "I am eating.",
   "distractors": ["inu", "koe"] }
@@ -61,7 +72,7 @@ To control the split yourself, give a unit a `lessons` list. Every item in the u
 - `id` must be unique and should never change once you've started learning it (progress is keyed by it).
 - `en` should be unique within a type, or multiple choice gets ambiguous.
 - Sentences are built from the words in `mi`, plus any `distractors`.
-- `audio_link` / `video_link` show up as "Listen" / "Watch" buttons. Add links as you find good pronunciation recordings.
+- `te_aka_id` (words only) gives the in-app 🔊 audio and the exact Te Aka link. `audio` overrides the audio URL. `audio_link` / `video_link` appear as "More audio" / "Watch" links to elsewhere, so add recordings and videos as you find good ones. `dictionary_link` overrides the Te Aka link.
 
 Check your edits:
 

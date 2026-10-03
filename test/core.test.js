@@ -212,4 +212,34 @@ test('migrate marks fully-learned lessons done, in order, and nothing after a ga
   assert.strictEqual(Object.keys(fresh.lessons).length, 0);
 });
 
+/* ---- Te Aka audio and links ---- */
+
+test('audioUrl: Te Aka entry id, explicit override, or nothing', () => {
+  const meta = content.meta;
+  assert.strictEqual(C.audioUrl({ te_aka_id: 1684 }, meta),
+    'https://storage.googleapis.com/maori-dictionary-prod2-web-assets/public/1684.mp3');
+  assert.strictEqual(C.audioUrl({ te_aka_id: 1684, audio: 'https://example.org/a.mp3' }, meta), 'https://example.org/a.mp3');
+  assert.strictEqual(C.audioUrl({ mi: 'ka kite' }, meta), '');
+  assert.strictEqual(C.audioUrl({ te_aka_id: 5 }, {}), '', 'no base configured means no audio');
+});
+
+test('dictionaryUrl: exact entry, override, search fallback for words only', () => {
+  const meta = content.meta;
+  assert.strictEqual(C.dictionaryUrl({ type: 'word', te_aka_id: 1684, mi: 'ika' }, meta), 'https://maoridictionary.co.nz/word/1684');
+  assert.strictEqual(C.dictionaryUrl({ type: 'word', mi: 'ka kite' }, meta), 'https://maoridictionary.co.nz/search?keywords=ka%20kite');
+  assert.strictEqual(C.dictionaryUrl({ type: 'word', mi: 'x', dictionary_link: 'https://e.org/x' }, meta), 'https://e.org/x');
+  assert.strictEqual(C.dictionaryUrl({ type: 'sentence', mi: 'He ika.' }, meta), '');
+});
+
+test('content: every word except "ka kite" has a Te Aka id; ids are unique; spellings match Te Aka', () => {
+  const words = items.filter((i) => i.type === 'word');
+  const missing = words.filter((w) => !w.te_aka_id).map((w) => w.mi);
+  assert.deepStrictEqual(missing, ['ka kite']);
+  const ids = words.filter((w) => w.te_aka_id).map((w) => w.te_aka_id);
+  assert.strictEqual(new Set(ids).size, ids.length, 'two words share a Te Aka id');
+  assert.strictEqual(byId['ae'].mi, 'āe', 'Te Aka spells yes with a macron');
+  assert.ok(content.meta.audio_base.startsWith('https://') && content.meta.audio_base.endsWith('/'));
+  assert.ok(content.meta.audio_credit.includes('Te Aka'));
+});
+
 console.log(`\n${n} tests passed`);

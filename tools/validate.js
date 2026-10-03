@@ -25,9 +25,13 @@ let words = 0, sentences = 0;
       if (!/[.?!]$/.test(it.mi || '')) errors.push(`${where}: sentence should end with . ? or !`);
       if (it.distractors && !Array.isArray(it.distractors)) errors.push(`${where}: distractors must be an array`);
     }
-    ['audio_link', 'video_link', 'dictionary_link'].forEach((k) => {
+    ['audio_link', 'video_link', 'dictionary_link', 'audio'].forEach((k) => {
       if (it[k] && !/^https?:\/\//.test(it[k])) errors.push(`${where}: ${k} must start with http(s)://`);
     });
+    if (it.te_aka_id !== undefined && !(Number.isInteger(it.te_aka_id) && it.te_aka_id > 0)) {
+      errors.push(`${where}: te_aka_id must be a positive whole number (the number in the entry's /word/NNN page URL)`);
+    }
+    if (it.te_aka_id !== undefined && it.type === 'sentence') errors.push(`${where}: te_aka_id is for words`);
   });
 });
 
